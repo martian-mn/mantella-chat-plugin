@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mantella Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="chat" class="chat" data-state="idle">
+    <header class="chat__header">
+      <span class="chat__title">Mantella</span>
+      <span id="status" class="chat__status">idle</span>
+    </header>
+    <div id="transcript" class="chat__transcript" tabindex="-1"></div>
+    <form id="form" class="chat__input">
+      <input
+        id="input"
+        type="text"
+        placeholder="Type your reply…"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="500"
+      />
+      <button id="send" type="submit">Send</button>
+    </form>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

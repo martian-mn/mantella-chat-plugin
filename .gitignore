@@ -1,0 +1,8 @@
+build/
+dist/
+*.dll
+*.dll.a
+*.o
+*.pdb
+.cache/
+.xmake/
