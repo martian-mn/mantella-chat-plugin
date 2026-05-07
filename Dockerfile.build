@@ -1,0 +1,67 @@
+# Build environment: msvc-wine + xmake for cross-compiling SKSE plugins
+# from Linux against the full CommonLibSSE-NG library.
+#
+# Usage:
+#   docker build -t mantella-chat-builder -f Dockerfile.build .
+#   docker run --rm -v "$PWD:/src" mantella-chat-builder bash -c "cd /src && xmake f -p windows -a x64 -m release -y && xmake -y"
+
+FROM msvc-wine:latest
+
+# Install Kitware's apt repo to get a recent cmake (>=3.23 needed for
+# msvc-wine cross-compile, per their README).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        gpg \
+        ca-certificates \
+        gnupg \
+    && \
+    curl -fsSL https://apt.kitware.com/keys/kitware-archive-latest.asc | \
+        gpg --dearmor > /usr/share/keyrings/kitware-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main" \
+        > /etc/apt/sources.list.d/kitware.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        cmake \
+        git \
+        unzip \
+        7zip \
+        build-essential \
+        libreadline-dev \
+        ninja-build \
+        zip \
+        pkg-config \
+        winbind \
+    && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install xmake. Pin a known version — the unpinned shget script's "latest
+# version detection" sometimes returns an empty string and 404s.
+ARG XMAKE_VERSION=3.0.8
+RUN curl -fsSL -o /tmp/xmake.gz.run \
+        "https://github.com/xmake-io/xmake/releases/download/v${XMAKE_VERSION}/xmake-v${XMAKE_VERSION}.gz.run" && \
+    chmod +x /tmp/xmake.gz.run && \
+    /tmp/xmake.gz.run && \
+    rm -f /tmp/xmake.gz.run
+
+ENV PATH=/root/.local/bin:$PATH
+ENV XMAKE_ROOT=y
+
+# Install vcpkg for CommonLibSSE-NG's dependencies (spdlog, directxtk, rapidcsv).
+# Bootstrapping compiles vcpkg.exe natively (Linux ELF — used to drive the
+# Windows package builds via the wine-MSVC toolchain).
+ENV VCPKG_ROOT=/opt/vcpkg
+RUN git clone --depth 1 https://github.com/microsoft/vcpkg.git /opt/vcpkg && \
+    /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+ENV PATH=/opt/vcpkg:$PATH
+
+# Make MSVC tools visible to xmake. The msvc-wine wrappers in /opt/msvc/bin/x64
+# are bash shims that run wine-MSVC under the hood. xmake will autodetect
+# Visual Studio if we set the right env vars.
+COPY --from=msvc-wine:latest /opt/msvc /opt/msvc
+
+ENV INCLUDE="/opt/msvc/VC/Tools/MSVC/14.50.35730/include;/opt/msvc/Windows Kits/10/Include/10.0.26100.0/ucrt;/opt/msvc/Windows Kits/10/Include/10.0.26100.0/shared;/opt/msvc/Windows Kits/10/Include/10.0.26100.0/um;/opt/msvc/Windows Kits/10/Include/10.0.26100.0/winrt"
+ENV LIB="/opt/msvc/VC/Tools/MSVC/14.50.35730/lib/x64;/opt/msvc/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64;/opt/msvc/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+ENV PATH="/opt/msvc/bin/x64:$PATH"
+
+WORKDIR /src

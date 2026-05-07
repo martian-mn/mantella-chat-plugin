@@ -1,4 +1,6 @@
 build/
+build-cmake/
+build-docker/
 dist/
 *.dll
 *.dll.a
@@ -6,3 +8,8 @@ dist/
 *.pdb
 .cache/
 .xmake/
+
+# vcpkg manifest-mode artifacts (the cmake build pulls these on demand)
+vcpkg_installed/
+vcpkg/
+.vcpkg-cache/

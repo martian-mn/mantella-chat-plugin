@@ -1,0 +1,15 @@
+{
+    "name": "mantella-chat",
+    "version-string": "0.1.0",
+    "description": "In-game chat overlay for the Mantella text-only fork",
+    "homepage": "https://github.com/martian-mn/mantella-chat-plugin",
+    "license": "GPL-3.0-only",
+    "dependencies": [
+        {
+            "name": "spdlog",
+            "features": ["wchar"]
+        },
+        "directxtk",
+        "rapidcsv"
+    ]
+}

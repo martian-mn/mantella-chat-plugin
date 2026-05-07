@@ -1,0 +1,68 @@
+name: Build MantellaChat plugin
+
+# Builds the SKSE plugin DLL on a Windows runner with Visual Studio 2022
+# pre-installed. vcpkg is bundled in the runner and is wired in via the
+# CMake toolchain. A successful build uploads the DLL as a workflow
+# artifact for download.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
+      VCPKG_BINARY_SOURCES: "clear;default,readwrite"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Cache vcpkg's built dependencies between runs so subsequent builds
+      # are fast (CommonLibSSE-NG's deps take ~5 min on a cold cache).
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Ensure vcpkg cache dir exists
+        run: New-Item -ItemType Directory -Path "$env:VCPKG_DEFAULT_BINARY_CACHE" -Force | Out-Null
+        shell: pwsh
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+        shell: pwsh
+
+      - name: Build
+        run: cmake --build build --config Release
+        shell: pwsh
+
+      - name: Show build output
+        run: |
+          Get-ChildItem -Path build -Recurse -Filter "MantellaChat.dll" | Select-Object FullName, Length
+          Get-ChildItem -Path build -Filter "*.pdb" -Recurse | Select-Object FullName, Length
+        shell: pwsh
+
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MantellaChat-windows-x64
+          path: |
+            build/MantellaChat.dll
+            build/MantellaChat.pdb
+          if-no-files-found: error
