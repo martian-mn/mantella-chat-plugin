@@ -37,14 +37,13 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     CPPHTTPLIB_NO_EXCEPTIONS
 )
 
-# Match vcpkg's x64-windows-static-md triplet: static libs but dynamic CRT
-# (/MD). Forcing /MT here would produce CRT symbol mismatches at link time
-# because the vcpkg-built deps (spdlog, fmt, directxtk) were compiled
-# against ucrt. Skyrim AE 1.6.x ships its own ucrt redist alongside the
-# game, so /MD is fine for users.
+# Fully static CRT so users don't need a separate VC++ Redistributable
+# installed in their Skyrim Wine prefix. Pairs with vcpkg's
+# x64-windows-static triplet (set in the Actions workflow), which builds
+# spdlog/fmt/directxtk against /MT as well — no symbol mismatch at link.
 if(MSVC)
     set_property(TARGET ${PROJECT_NAME} PROPERTY
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL$<$<CONFIG:Debug>:Debug>")
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
