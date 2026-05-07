@@ -25,6 +25,15 @@ jobs:
         with:
           submodules: recursive
 
+      # The Windows runner ships with both MSVC and MSYS2/mingw GCC. Without
+      # this, cmake auto-discovers GCC first and CommonLibSSE-NG's static
+      # asserts on struct sizes (sized for MSVC's ABI) fail. ilammy's action
+      # sets up vcvarsall.bat-equivalent env vars so cl.exe is found first.
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       # Cache vcpkg's built dependencies between runs so subsequent builds
       # are fast (CommonLibSSE-NG's deps take ~5 min on a cold cache).
       - name: Cache vcpkg
@@ -44,6 +53,8 @@ jobs:
         run: |
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
         shell: pwsh
