@@ -127,6 +127,16 @@
     }
   });
 
+  // Diagnostic: log every keydown that reaches Ultralight, regardless of focus
+  // state. Routed back to MantellaChat.log via PrismaUI V2's console callback.
+  // Lets us tell the difference between "keys aren't reaching Ultralight at all"
+  // vs "keys reach Ultralight but our focus routing is broken."
+  document.addEventListener("keydown", function (e) {
+    console.log("keydown reached Ultralight: key=" + JSON.stringify(e.key) +
+                " code=" + e.code + " panelActive=" + panelActive +
+                " focusEl=" + (document.activeElement && document.activeElement.id));
+  }, true);  // capture-phase, so we see it even if a child stops propagation.
+
   document.addEventListener("keydown", function (e) {
     if (!panelActive) return;
 

@@ -30,7 +30,11 @@ namespace logger = SKSE::log;
 
 namespace
 {
+    // Held as IVPrismaUI1* so the rest of the plugin only needs the V1 surface.
+    // We try to upgrade to V2 separately so we can register a console callback
+    // for in-page diagnostics — V2 is optional, V1 is required.
     PRISMA_UI_API::IVPrismaUI1* g_prisma = nullptr;
+    PRISMA_UI_API::IVPrismaUI2* g_prisma_v2 = nullptr;
     PrismaView                  g_view = 0;
     std::atomic<bool>           g_focused{ false };
     std::atomic<bool>           g_conversation_active{ false };
@@ -278,6 +282,26 @@ namespace
         }
 
         g_view = g_prisma->CreateView("Mantella-Chat-UI/index.html", &onViewReady);
+
+        // Try to upgrade to the V2 interface for console-log forwarding.
+        // V2 is purely diagnostic — if PrismaUI is older / V2 isn't available
+        // we just skip console forwarding without disabling the overlay.
+        g_prisma_v2 = PRISMA_UI_API::RequestPluginAPI<PRISMA_UI_API::IVPrismaUI2>();
+        if (g_prisma_v2) {
+            g_prisma_v2->RegisterConsoleCallback(g_view,
+                [](PrismaView, PRISMA_UI_API::ConsoleMessageLevel level, const char* message) {
+                    if (!message) return;
+                    using L = PRISMA_UI_API::ConsoleMessageLevel;
+                    switch (level) {
+                        case L::Error:   logger::error("JS console: {}", message); break;
+                        case L::Warning: logger::warn("JS console: {}", message);  break;
+                        default:         logger::info("JS console: {}", message);  break;
+                    }
+                });
+            logger::info("PrismaUI V2 console callback registered");
+        } else {
+            logger::warn("PrismaUI V2 not available; console messages will not be forwarded");
+        }
 
         // Register the F4 input handler against Skyrim's input device manager.
         // RegisterSink() pulls BSInputDeviceManager::GetSingleton() — must
