@@ -195,26 +195,65 @@ namespace
     }
 
     // ---- F4 toggle handler (runs inside BSInputDeviceManager dispatch) --
-    // This is the only path that reliably engages Ultralight's keystroke
-    // router. We must call Focus()/Unfocus() synchronously from inside
-    // ProcessEvent — NOT via AddUITask. See InputHandler.h for context.
+    // PrismaUI's keyboard input route is a Win32 WndProc subclass; under Wine
+    // + Proton + gamescope those WM_KEYDOWN messages don't reach the hook,
+    // so we can't rely on Focus() alone to deliver typing to the DOM.
+    //
+    // Workaround: when we engage focus, also flip the InputHandler into
+    // "consume mode" so it forwards every keyboard event to JS via Invoke().
+    // The DOM sees synthetic KeyboardEvents instead of OS-delivered ones.
     void onF4Pressed()
     {
         if (!g_prisma || !g_view) return;
+        auto& input = mantella_chat::InputHandler::GetSingleton();
         if (g_focused.load()) {
             g_prisma->Unfocus(g_view);
             g_prisma->Invoke(g_view, "mantellaFocus(false)");
             g_focused.store(false);
+            input.SetConsumeMode(false);
             logger::info("F4: focus released");
         } else {
             if (g_prisma->Focus(g_view)) {
                 g_prisma->Invoke(g_view, "mantellaFocus(true)");
                 g_focused.store(true);
+                input.SetConsumeMode(true);
                 logger::info("F4: focus engaged");
             } else {
                 logger::warn("F4: PrismaUI->Focus() returned false");
             }
         }
+    }
+
+    // ---- Key-typed callback (also runs on input dispatch thread) --------
+    // Builds a JavaScript snippet that dispatches a synthetic KeyboardEvent
+    // on the document. The page's existing keydown listener handles the
+    // event identically to a real OS-delivered one — so the input box
+    // accumulates characters, Enter submits, Escape unfocuses, etc.
+    void onKeyTyped(const char* key, bool shift, bool ctrl)
+    {
+        if (!g_prisma || !g_view) return;
+        if (!key || !*key) return;
+
+        // Build: mantellaInjectKey("a", false, false)
+        // Need to escape for embedding in a JS string literal. The keys our
+        // mapping table emits are all ASCII; the only character that needs
+        // escaping is the double-quote (sent for shifted "'").
+        std::string escaped;
+        escaped.reserve(8);
+        for (const char* p = key; *p; ++p) {
+            if (*p == '"' || *p == '\\') escaped += '\\';
+            escaped += *p;
+        }
+
+        std::string js = "mantellaInjectKey(\"";
+        js += escaped;
+        js += "\", ";
+        js += shift ? "true" : "false";
+        js += ", ";
+        js += ctrl ? "true" : "false";
+        js += ")";
+
+        g_prisma->Invoke(g_view, js.c_str());
     }
 
     // ---- View ready callback -------------------------------------------
@@ -308,10 +347,11 @@ namespace
         // happen at-or-after kDataLoaded so the singleton exists.
         auto& input = mantella_chat::InputHandler::GetSingleton();
         input.SetOnTogglePressed(&onF4Pressed);
+        input.SetOnKeyTyped(&onKeyTyped);
         if (!input.RegisterSink()) {
             logger::error("Failed to register input event sink — F4 hotkey disabled");
         } else {
-            logger::info("Input sink registered, F4 toggle armed");
+            logger::info("Input sink registered, F4 toggle armed, key forwarding ready");
         }
     }
 }

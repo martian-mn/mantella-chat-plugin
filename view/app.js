@@ -127,15 +127,26 @@
     }
   });
 
-  // Diagnostic: log every keydown that reaches Ultralight, regardless of focus
-  // state. Routed back to MantellaChat.log via PrismaUI V2's console callback.
-  // Lets us tell the difference between "keys aren't reaching Ultralight at all"
-  // vs "keys reach Ultralight but our focus routing is broken."
-  document.addEventListener("keydown", function (e) {
-    console.log("keydown reached Ultralight: key=" + JSON.stringify(e.key) +
-                " code=" + e.code + " panelActive=" + panelActive +
-                " focusEl=" + (document.activeElement && document.activeElement.id));
-  }, true);  // capture-phase, so we see it even if a child stops propagation.
+  // Bridge: SKSE plugin forwards keystrokes here (one call per key press).
+  // We bypass PrismaUI's WndProc-based input router because under Wine +
+  // Proton + gamescope WM_KEYDOWN messages don't reach Ultralight's hook
+  // even when Focus() succeeds. The C++ InputHandler captures keys via
+  // BSInputDeviceManager (the same path Skyrim itself uses for movement)
+  // and calls this function with a JavaScript-style key value.
+  //
+  // We construct a synthetic KeyboardEvent and dispatch it on the document
+  // so the existing keydown handler below treats it identically to a real
+  // OS-delivered event.
+  window.mantellaInjectKey = function (key, shift, ctrl) {
+    const ev = new KeyboardEvent("keydown", {
+      key: key,
+      shiftKey: !!shift,
+      ctrlKey: !!ctrl,
+      bubbles: true,
+      cancelable: true
+    });
+    document.dispatchEvent(ev);
+  };
 
   document.addEventListener("keydown", function (e) {
     if (!panelActive) return;
