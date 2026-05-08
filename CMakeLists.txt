@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
 # Top-level build for the MantellaChat SKSE plugin.
-# Cross-compiled from Linux via the msvc-wine Docker image (see Dockerfile.build
-# and CHAT_PLUGIN_DESIGN.md for the full setup). vcpkg is bootstrapped inside
-# the container at /opt/vcpkg and supplies CommonLibSSE-NG's dependencies
-# (spdlog, directxtk, rapidcsv) when the toolchain file is set.
+#
+# Builds via GitHub Actions on a windows-latest runner with Visual Studio
+# 2022 + vcpkg manifest mode. CommonLibSSE-NG depends on DirectXTK (Microsoft-
+# only), so cross-compiling from Linux isn't viable — see CHAT_PLUGIN_DESIGN.md
+# for the migration history.
 
 project(MantellaChat
     LANGUAGES CXX
@@ -35,28 +36,23 @@ add_library(${PROJECT_NAME} SHARED
     src/InputHandler.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE src)
-
+# WIN32_LEAN_AND_MEAN/NOMINMAX trim windows.h. _WIN32_WINNT comes from
+# CommonLibSSE-NG's PUBLIC compile_definitions (0x0601 — Windows 7, the
+# baseline Skyrim SE supports), so we don't redefine it here.
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     WIN32_LEAN_AND_MEAN
     NOMINMAX
-    _WIN32_WINNT=0x0A00
     CPPHTTPLIB_NO_EXCEPTIONS
 )
 
-# Fully static CRT so users don't need a separate VC++ Redistributable
-# installed in their Skyrim Wine prefix. Pairs with vcpkg's
-# x64-windows-static triplet (set in the Actions workflow), which builds
-# spdlog/fmt/directxtk against /MT as well — no symbol mismatch at link.
-if(MSVC)
-    set_property(TARGET ${PROJECT_NAME} PROPERTY
-        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
-
+# Per-target runtime-library setting was redundant once we set
+# CMAKE_MSVC_RUNTIME_LIBRARY globally above (and CMake honours that on every
+# target via CMP0091=NEW). Keeping the comment as a breadcrumb.
+#
+# ws2_32 is the only Windows SDK library we link directly — httplib uses it
+# for socket calls. CommonLibSSE-NG transitively brings in the rest of what
+# its own implementation needs (kernel32, user32, etc.).
 target_link_libraries(${PROJECT_NAME} PRIVATE
     CommonLibSSE::CommonLibSSE
     ws2_32
-    crypt32
-    user32
-    advapi32
 )
