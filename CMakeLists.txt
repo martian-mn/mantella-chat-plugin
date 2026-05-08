@@ -15,6 +15,13 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Static-link the CRT for everything in this build, including the
+# CommonLibSSE-NG subdirectory. CMP0091=NEW makes MSVC_RUNTIME_LIBRARY the
+# canonical knob (instead of CMAKE_CXX_FLAGS_RELEASE manipulations).
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+    CACHE STRING "Static CRT for everything in this build" FORCE)
+
 # CommonLibSSE-NG. Disable its built-in tests and the runtimes we don't
 # target. We're running on Skyrim AE 1.6.x, but leaving SE+VR enabled keeps
 # the plugin's address-library lookup tolerant of saves migrated across
